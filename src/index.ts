@@ -70,11 +70,30 @@ server.tool(
       for (const t of parsed.threads) {
         stateCounts.set(t.state, (stateCounts.get(t.state) || 0) + 1);
       }
-      sections.push(`\n### Thread States`);
-      sections.push(`| State | Count |`);
-      sections.push(`|-------|-------|`);
-      for (const [state, count] of [...stateCounts.entries()].sort((a, b) => b[1] - a[1])) {
-        sections.push(`| ${state} | ${count} |`);
+
+      // Ensure all canonical Java thread states appear
+      const canonicalStates = ["RUNNABLE", "WAITING", "TIMED_WAITING", "BLOCKED", "NEW", "TERMINATED"];
+      for (const s of canonicalStates) {
+        if (!stateCounts.has(s)) stateCounts.set(s, 0);
+      }
+
+      const total = parsed.threads.length;
+      const maxCount = Math.max(...stateCounts.values(), 1);
+      const barMaxWidth = 20;
+
+      sections.push(`\n### Thread State Summary`);
+      sections.push(`| State | Count | % | Histogram |`);
+      sections.push(`|-------|------:|--:|-----------|`);
+      // Sort: non-zero descending by count, then zero-count states in canonical order
+      const sorted = [...stateCounts.entries()].sort((a, b) => {
+        if (a[1] !== b[1]) return b[1] - a[1];
+        return canonicalStates.indexOf(a[0]) - canonicalStates.indexOf(b[0]);
+      });
+      for (const [state, count] of sorted) {
+        const pct = total > 0 ? ((count / total) * 100).toFixed(1) : "0.0";
+        const barLen = Math.round((count / maxCount) * barMaxWidth);
+        const bar = "\u2588".repeat(barLen);
+        sections.push(`| ${state} | ${count} | ${pct} | \`${bar}\` |`);
       }
 
       // Deadlocks
