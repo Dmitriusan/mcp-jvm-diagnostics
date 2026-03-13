@@ -1,6 +1,6 @@
 {
   "name": "mcp-jvm-diagnostics",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server for JVM diagnostics — analyze thread dumps, detect deadlocks, parse GC logs, and get JVM tuning recommendations",
   "author": "Dmytro Lisnichenko",
   "type": "module",
@@ -23,17 +23,21 @@
   ],
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
+    "ai",
+    "claude",
+    "anthropic",
     "jvm",
     "java",
+    "diagnostics",
+    "monitoring",
+    "performance",
+    "heap",
+    "garbage-collection",
     "thread-dump",
     "deadlock",
-    "gc-log",
-    "garbage-collection",
-    "diagnostics",
-    "performance",
-    "ai",
-    "claude"
+    "gc-log"
   ],
   "license": "MIT",
   "engines": {
