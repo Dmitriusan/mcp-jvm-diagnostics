@@ -12,10 +12,6 @@ import { analyzeGcPressure } from "./analyzers/gc-pressure.js";
 import { parseHeapHisto } from "./parsers/heap-histo.js";
 import { compareHeapHistos } from "./analyzers/heap-diff.js";
 import { parseJfrSummary } from "./parsers/jfr-summary.js";
-import { validateLicense, formatUpgradePrompt } from "./license.js";
-
-// License check (reads MCP_LICENSE_KEY env var once at startup)
-const license = validateLicense(process.env.MCP_LICENSE_KEY, "jvm-diagnostics");
 
 // Handle --help
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -285,19 +281,6 @@ server.tool(
       .describe("The SECOND (later) jmap -histo output"),
   },
   async ({ before, after }) => {
-    if (!license.isPro) {
-      return {
-        content: [{
-          type: "text",
-          text: formatUpgradePrompt("compare_heap_histos",
-            "Heap histogram comparison with:\n" +
-            "- Memory growth pattern detection between snapshots\n" +
-            "- Leak candidate identification\n" +
-            "- New class allocation tracking\n" +
-            "- Shrinking class analysis"),
-        }],
-      };
-    }
     try {
       const report = compareHeapHistos(before, after);
       const sections: string[] = [];
@@ -457,19 +440,6 @@ server.tool(
       .describe("GC log text (from -Xlog:gc*)"),
   },
   async ({ thread_dump, gc_log }) => {
-    if (!license.isPro) {
-      return {
-        content: [{
-          type: "text",
-          text: formatUpgradePrompt("diagnose_jvm",
-            "Unified JVM diagnosis with:\n" +
-            "- Combined thread dump + GC log analysis\n" +
-            "- Cross-correlation of GC pauses and thread contention\n" +
-            "- Root cause identification\n" +
-            "- Prioritized remediation plan"),
-        }],
-      };
-    }
     try {
       if (!thread_dump && !gc_log) {
         return {
