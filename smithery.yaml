@@ -1,0 +1,34 @@
+name: mcp-jvm-diagnostics
+displayName: JVM Diagnostics
+description: MCP server for JVM diagnostics — analyze thread dumps, detect deadlocks, parse GC logs, and get JVM tuning recommendations
+version: 0.1.3
+license: MIT
+homepage: https://github.com/Dmitriusan/mcp-jvm-diagnostics
+npm: mcp-jvm-diagnostics
+categories:
+  - developer-tools
+  - monitoring
+  - java
+keywords:
+  - jvm
+  - java
+  - diagnostics
+  - thread-dump
+  - gc-log
+  - heap
+  - performance
+tools:
+  - name: analyze_thread_dump
+    description: Detect deadlocks, contention hotspots, and thread state distribution from a JVM thread dump
+  - name: analyze_gc_log
+    description: Parse GC patterns, pause times, and memory pressure from a GC log
+  - name: analyze_heap_histo
+    description: Find memory leak candidates and classloader leaks from a heap histogram
+  - name: compare_heap_histos
+    description: Detect memory growth patterns by comparing two heap histogram snapshots
+  - name: analyze_jfr
+    description: Parse JDK Flight Recorder (.jfr) data for CPU, memory, and lock events
+  - name: diagnose_jvm
+    description: Unified diagnosis combining thread dump and GC log analysis in one call
+transport:
+  - stdio
