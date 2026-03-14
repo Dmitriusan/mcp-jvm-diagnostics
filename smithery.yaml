@@ -1,6 +1,6 @@
 name: mcp-jvm-diagnostics
 displayName: JVM Diagnostics
-description: MCP server for JVM diagnostics — analyze thread dumps, detect deadlocks, parse GC logs, and get JVM tuning recommendations
+description: Connects Claude Code and Cursor to your JVM for thread dump analysis, deadlock detection, GC log parsing, heap histogram inspection, and JVM tuning recommendations
 version: 0.1.3
 license: MIT
 homepage: https://github.com/Dmitriusan/mcp-jvm-diagnostics
