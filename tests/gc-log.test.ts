@@ -25,6 +25,18 @@ const HIGH_PRESSURE_LOG = `
 [0.800s][info][gc] GC(7) Pause Full (G1 Compaction Pause) 250M->220M(256M) 620.0ms
 `;
 
+const SHENANDOAH_LOG = `
+[0.005s][info][gc] Using Shenandoah
+[0.521s][info][gc] GC(0) Pause Init Mark 2.606ms
+[0.534s][info][gc] GC(0) Concurrent Mark 13.361ms
+[0.534s][info][gc] GC(0) Pause Final Mark 1.496ms
+[0.535s][info][gc] GC(0) Concurrent Cleanup 0.442ms
+[0.545s][info][gc] GC(0) Concurrent Evacuation 10.084ms
+[0.552s][info][gc] GC(0) Pause Init Update Refs 0.041ms
+[0.561s][info][gc] GC(0) Concurrent Update Refs 9.699ms
+[0.561s][info][gc] GC(0) Pause Final Update Refs 1.016ms
+`;
+
 const LEGACY_LOG = `
 [GC (Allocation Failure) 65536K->12345K(251392K), 0.0123456 secs]
 [GC (Allocation Failure) 77881K->15000K(251392K), 0.0098765 secs]
@@ -80,6 +92,32 @@ describe("GC Log Parser", () => {
     const result = parseGcLog(LEGACY_LOG);
     expect(result.events[0].heapBeforeMb).toBe(64); // 65536K ≈ 64M
     expect(result.events[0].heapAfterMb).toBe(12); // 12345K ≈ 12M
+  });
+
+  it("detects Shenandoah algorithm", () => {
+    const result = parseGcLog(SHENANDOAH_LOG);
+    expect(result.algorithm).toBe("Shenandoah");
+  });
+
+  it("parses Shenandoah pause events", () => {
+    const result = parseGcLog(SHENANDOAH_LOG);
+    const pauseEvents = result.events.filter(e => e.pauseMs > 0);
+    // Init Mark, Final Mark, Init Update Refs, Final Update Refs
+    expect(pauseEvents.length).toBe(4);
+  });
+
+  it("parses Shenandoah pause times correctly", () => {
+    const result = parseGcLog(SHENANDOAH_LOG);
+    const initMark = result.events.find(e => e.type === "Pause Init Mark");
+    expect(initMark).toBeDefined();
+    expect(initMark!.pauseMs).toBeCloseTo(2.606, 2);
+  });
+
+  it("treats Shenandoah concurrent phases as non-pausing", () => {
+    const result = parseGcLog(SHENANDOAH_LOG);
+    const concurrent = result.events.filter(e => e.type.startsWith("Concurrent"));
+    expect(concurrent.length).toBeGreaterThan(0);
+    expect(concurrent.every(e => e.pauseMs === 0)).toBe(true);
   });
 });
 

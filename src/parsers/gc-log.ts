@@ -38,6 +38,11 @@ const LEGACY_GC_RE =
 const ZGC_RE =
   /\[(\d+[.,]\d+)s\].*?GC\(\d+\)\s+Garbage Collection\s+\([^)]+\)\s+(\d+)M\(\d+%\)->(\d+)M\(\d+%\)\s+(\d+[.,]\d+)ms/;
 
+// Shenandoah pause format: [0.521s][info][gc] GC(0) Pause Init Mark 2.606ms
+// Pauses include: Pause Init Mark, Pause Final Mark, Pause Init Update Refs, Pause Final Update Refs, Pause Full
+const SHENANDOAH_PAUSE_RE =
+  /\[(\d+[.,]\d+)s\].*?GC\(\d+\)\s+(Pause\s+(?:Init|Final)\s+\S+(?:\s+\S+)?|Pause Full(?:\s+\([^)]*\))?)\s+(\d+[.,]\d+)ms/;
+
 export function parseGcLog(text: string): ParsedGcLog {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const events: GcEvent[] = [];
@@ -89,6 +94,20 @@ export function parseGcLog(text: string): ParsedGcLog {
         timestamp: parseFloat(concurrentMatch[1].replace(",", ".")),
         type: concurrentMatch[2].trim(),
         pauseMs: 0, // concurrent phases don't pause
+        heapBeforeMb: 0,
+        heapAfterMb: 0,
+        heapTotalMb: 0,
+      });
+      continue;
+    }
+
+    // Try Shenandoah pause format (no heap sizes in pause events)
+    const shenandoahMatch = line.match(SHENANDOAH_PAUSE_RE);
+    if (shenandoahMatch) {
+      events.push({
+        timestamp: parseFloat(shenandoahMatch[1].replace(",", ".")),
+        type: shenandoahMatch[2].trim(),
+        pauseMs: parseFloat(shenandoahMatch[3].replace(",", ".")),
         heapBeforeMb: 0,
         heapAfterMb: 0,
         heapTotalMb: 0,
