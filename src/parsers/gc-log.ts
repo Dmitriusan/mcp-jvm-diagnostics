@@ -43,6 +43,13 @@ const ZGC_RE =
 const SHENANDOAH_PAUSE_RE =
   /\[(\d+[.,]\d+)s\].*?GC\(\d+\)\s+(Pause\s+(?:Init|Final)\s+\S+(?:\s+\S+)?|Pause Full(?:\s+\([^)]*\))?)\s+(\d+[.,]\d+)ms/;
 
+// Parallel GC verbose:gc with region detail (-verbose:gc on Java 8):
+// [GC (Allocation Failure) [PSYoungGen: 65536K->5432K(76288K)] 65536K->5432K(251392K), 0.0123456 secs]
+// [Full GC (Ergonomics) [PSYoungGen: 5K->0K(76K)] [ParOldGen: 100K->50K(175K)] 105K->50K(251K), [Metaspace: 10K->10K(1056K)], 0.5679 secs]
+// The (?:\s*\[[^\]]+\])+ skips one or more region detail blocks (PSYoungGen, ParOldGen, Metaspace before secs).
+const PARALLEL_REGION_GC_RE =
+  /\[(Full\s+)?GC\s*\([^)]+\)(?:\s*\[[^\]]+\])+\s*(\d+)K->(\d+)K\((\d+)K\),(?:\s*\[[^\]]+\],)?\s*(\d+[.,]\d+)\s+secs/;
+
 export function parseGcLog(text: string): ParsedGcLog {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const events: GcEvent[] = [];
@@ -126,6 +133,21 @@ export function parseGcLog(text: string): ParsedGcLog {
         heapBeforeMb: Math.round(parseInt(legacyMatch[3], 10) / 1024),
         heapAfterMb: Math.round(parseInt(legacyMatch[4], 10) / 1024),
         heapTotalMb: Math.round(parseInt(legacyMatch[5], 10) / 1024),
+      });
+      continue;
+    }
+
+    // Try Parallel GC verbose:gc with PSYoungGen/ParOldGen region blocks
+    const parallelRegionMatch = line.match(PARALLEL_REGION_GC_RE);
+    if (parallelRegionMatch) {
+      const isFull = !!parallelRegionMatch[1];
+      events.push({
+        timestamp: 0,
+        type: isFull ? "Pause Full" : "Pause Young",
+        pauseMs: parseFloat(parallelRegionMatch[5].replace(",", ".")) * 1000,
+        heapBeforeMb: Math.round(parseInt(parallelRegionMatch[2], 10) / 1024),
+        heapAfterMb: Math.round(parseInt(parallelRegionMatch[3], 10) / 1024),
+        heapTotalMb: Math.round(parseInt(parallelRegionMatch[4], 10) / 1024),
       });
     }
   }

@@ -43,6 +43,21 @@ const LEGACY_LOG = `
 [Full GC (Ergonomics) 200000K->50000K(251392K), 0.5678900 secs]
 `;
 
+// Parallel GC -verbose:gc output with PSYoungGen/ParOldGen region detail (Java 8 style)
+const PARALLEL_REGION_LOG = `
+[GC (Allocation Failure) [PSYoungGen: 65536K->5432K(76288K)] 65536K->5432K(251392K), 0.0123456 secs] [Times: user=0.04 sys=0.00, real=0.01 secs]
+[GC (Allocation Failure) [PSYoungGen: 70000K->6000K(76288K)] 70000K->6000K(251392K), 0.0098765 secs] [Times: user=0.03 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 5000K->0K(76288K)] [ParOldGen: 100000K->50000K(175104K)] 105000K->50000K(251392K), [Metaspace: 10000K->10000K(1056768K)], 0.5678900 secs] [Times: user=1.50 sys=0.00, real=0.57 secs]
+`;
+
+// ZGC unified logging format
+const ZGC_LOG = `
+[0.005s][info][gc] Using ZGC
+[0.100s][info][gc] GC(0) Garbage Collection (Warmup) 24M(9%)->8M(3%) 1.234ms
+[0.200s][info][gc] GC(1) Garbage Collection (Normal) 32M(12%)->10M(4%) 0.987ms
+[0.500s][info][gc] GC(2) Garbage Collection (Normal) 48M(18%)->12M(5%) 1.567ms
+`;
+
 describe("GC Log Parser", () => {
   it("detects G1 algorithm", () => {
     const result = parseGcLog(G1_LOG);
@@ -173,5 +188,76 @@ describe("GC Pressure Analyzer", () => {
     expect(pressure.minPauseMs).toBe(0);
     expect(pressure.maxPauseMs).toBe(0);
     expect(pressure.issues.length).toBe(0);
+  });
+});
+
+describe("Parallel GC verbose:gc with PSYoungGen/ParOldGen regions", () => {
+  it("detects Parallel algorithm from PSYoungGen content", () => {
+    const result = parseGcLog(PARALLEL_REGION_LOG);
+    expect(result.algorithm).toBe("Parallel");
+  });
+
+  it("parses all events including Full GC", () => {
+    const result = parseGcLog(PARALLEL_REGION_LOG);
+    expect(result.events.length).toBe(3);
+  });
+
+  it("parses young GC pause times correctly", () => {
+    const result = parseGcLog(PARALLEL_REGION_LOG);
+    expect(result.events[0].pauseMs).toBeCloseTo(12.3456, 1);
+  });
+
+  it("parses Full GC with Metaspace region correctly", () => {
+    const result = parseGcLog(PARALLEL_REGION_LOG);
+    const fullGc = result.events.find(e => e.type === "Pause Full");
+    expect(fullGc).toBeDefined();
+    expect(fullGc!.pauseMs).toBeCloseTo(567.89, 0);
+  });
+
+  it("converts heap sizes from KB to MB", () => {
+    const result = parseGcLog(PARALLEL_REGION_LOG);
+    // 65536K -> 64MB, 5432K -> 5MB, 251392K -> 245MB
+    expect(result.events[0].heapBeforeMb).toBe(64);
+    expect(result.events[0].heapAfterMb).toBe(5);
+  });
+
+  it("classifies event types correctly", () => {
+    const result = parseGcLog(PARALLEL_REGION_LOG);
+    expect(result.events[0].type).toBe("Pause Young");
+    expect(result.events[2].type).toBe("Pause Full");
+  });
+});
+
+describe("ZGC format", () => {
+  it("detects ZGC algorithm", () => {
+    const result = parseGcLog(ZGC_LOG);
+    expect(result.algorithm).toBe("ZGC");
+  });
+
+  it("parses all ZGC Garbage Collection events", () => {
+    const result = parseGcLog(ZGC_LOG);
+    expect(result.events.length).toBe(3);
+  });
+
+  it("parses ZGC pause times correctly", () => {
+    const result = parseGcLog(ZGC_LOG);
+    expect(result.events[0].pauseMs).toBeCloseTo(1.234, 2);
+    expect(result.events[1].pauseMs).toBeCloseTo(0.987, 2);
+  });
+
+  it("parses ZGC heap sizes", () => {
+    const result = parseGcLog(ZGC_LOG);
+    expect(result.events[0].heapBeforeMb).toBe(24);
+    expect(result.events[0].heapAfterMb).toBe(8);
+  });
+
+  it("assigns correct event type label for ZGC", () => {
+    const result = parseGcLog(ZGC_LOG);
+    expect(result.events[0].type).toBe("Pause Young (ZGC)");
+  });
+
+  it("calculates time span across ZGC events", () => {
+    const result = parseGcLog(ZGC_LOG);
+    expect(result.timeSpanMs).toBeGreaterThan(0);
   });
 });
