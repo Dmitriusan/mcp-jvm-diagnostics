@@ -9,7 +9,7 @@ A Model Context Protocol (MCP) server that gives AI assistants the ability to an
 
 JVM diagnostic MCP servers exist (TDA, jfr-mcp, Arthas) — but they're all **Java-based**, requiring a JVM runtime just to diagnose JVM problems. This tool runs on **Node.js** via `npx` — no JVM, no Docker, no SSH.
 
-It analyzes **offline** artifacts (thread dumps, GC logs, heap histograms) rather than requiring a running JVM. Paste a thread dump or GC log and get instant analysis. Part of the [MCP Java Backend Suite](https://www.npmjs.com/package/mcp-java-backend-suite) — 5 tools covering databases, JVM, migrations, Spring Boot, and Redis for Java backend developers.
+It analyzes **offline** artifacts (thread dumps, GC logs, heap histograms) rather than requiring a running JVM. Paste a thread dump or GC log and get instant analysis.
 
 ## Features
 
@@ -159,6 +159,13 @@ Add these JVM flags to your application:
 - **No historical analysis**: Each analysis is a point-in-time snapshot. For trend analysis, compare multiple snapshots manually.
 - **HotSpot/OpenJDK only**: Parser targets HotSpot/OpenJDK thread dump format. GraalVM native-image or Eclipse OpenJ9 dumps may parse incompletely.
 - **Classloader leak detection**: Heap analysis flags growing ClassLoader instances but cannot definitively prove a leak without memory profiler data.
+
+## Part of the MCP Java Backend Suite
+
+- [mcp-db-analyzer](https://www.npmjs.com/package/mcp-db-analyzer) — PostgreSQL/MySQL/SQLite schema analysis
+- [mcp-spring-boot-actuator](https://www.npmjs.com/package/mcp-spring-boot-actuator) — Spring Boot health, metrics, and bean analysis
+- [mcp-redis-diagnostics](https://www.npmjs.com/package/mcp-redis-diagnostics) — Redis memory, slowlog, and client diagnostics
+- [mcp-migration-advisor](https://www.npmjs.com/package/mcp-migration-advisor) — Flyway/Liquibase migration risk analysis
 
 ## License
 
