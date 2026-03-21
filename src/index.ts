@@ -15,7 +15,7 @@ import { parseJfrSummary } from "./parsers/jfr-summary.js";
 
 // Handle --help
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
-  console.log(`mcp-jvm-diagnostics v0.1.4 — MCP server for JVM diagnostics
+  console.log(`mcp-jvm-diagnostics v0.1.5 — MCP server for JVM diagnostics
 
 Usage:
   mcp-jvm-diagnostics [options]
@@ -24,8 +24,8 @@ Options:
   --help, -h   Show this help message
 
 Tools provided:
-  analyze_thread_dump   Parse thread dump, detect deadlocks and contention
-  analyze_gc_log        Parse GC log, detect pressure and tuning opportunities
+  analyze_thread_dump   Parse thread dump, detect deadlocks and contention (platform + virtual threads)
+  analyze_gc_log        Parse GC log, detect pressure and tuning (G1, ZGC, Parallel, Shenandoah)
   analyze_heap_histo    Parse jmap -histo output, detect memory leak candidates
   compare_heap_histos   Compare two jmap histos to detect memory growth
   analyze_jfr           Parse JFR summary output, detect performance hotspots
@@ -41,7 +41,7 @@ const server = new McpServer({
 // --- Tool: analyze_thread_dump ---
 server.tool(
   "analyze_thread_dump",
-  "Parse a JVM thread dump (jstack output) and analyze thread states, detect deadlocks, identify lock contention hotspots, and find thread starvation patterns.",
+  "Parse a JVM thread dump (jstack output) and analyze thread states, detect deadlocks, identify lock contention hotspots, and find thread starvation patterns. Handles both platform threads and virtual threads (Java 21+).",
   {
     thread_dump: z
       .string()
@@ -140,7 +140,7 @@ server.tool(
 // --- Tool: analyze_gc_log ---
 server.tool(
   "analyze_gc_log",
-  "Parse a JVM GC log and analyze garbage collection patterns, pause times, allocation rates, and memory pressure. Supports G1, ZGC, and Parallel GC formats.",
+  "Parse a JVM GC log and analyze garbage collection patterns, pause times, allocation rates, and memory pressure. Supports G1, ZGC, Parallel, Serial, and Shenandoah GC formats.",
   {
     gc_log: z
       .string()
