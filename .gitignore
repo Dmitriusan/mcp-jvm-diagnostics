@@ -7,6 +7,6 @@ build/
 Thumbs.db
 *.log
 coverage/
-# Override global gitignore — CLAUDE.md and .claude/ are part of IrrationalCorp product architecture
-!CLAUDE.md
-!.claude/
+# Exclude Claude Code config from public repo
+CLAUDE.md
+.claude/

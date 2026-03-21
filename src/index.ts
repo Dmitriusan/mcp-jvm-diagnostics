@@ -15,7 +15,7 @@ import { parseJfrSummary } from "./parsers/jfr-summary.js";
 
 // Handle --help
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
-  console.log(`mcp-jvm-diagnostics v0.1.0 — MCP server for JVM diagnostics
+  console.log(`mcp-jvm-diagnostics v0.1.3 — MCP server for JVM diagnostics
 
 Usage:
   mcp-jvm-diagnostics [options]
@@ -35,7 +35,7 @@ Tools provided:
 
 const server = new McpServer({
   name: "mcp-jvm-diagnostics",
-  version: "0.1.0",
+  version: "0.1.3",
 });
 
 // --- Tool: analyze_thread_dump ---
