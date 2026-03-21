@@ -165,6 +165,16 @@ function analyzeJfrEvents(
     );
   }
 
+  // Check for threads spending time in Object.wait() — indicates producer-consumer imbalance
+  if (monitorWait && monitorWait.count > 2000) {
+    issues.push(
+      `${monitorWait.count.toLocaleString()} Object.wait() events — threads frequently waiting for notifications. Producers may be slower than consumers.`,
+    );
+    recommendations.push(
+      "Profile the producer side of producer-consumer queues. Consider bounded queues with backpressure or increasing producer thread count.",
+    );
+  }
+
   // Check for thread starts (churn)
   const threadStart = byName.get("jdk.ThreadStart");
   if (threadStart && threadStart.count > 200) {

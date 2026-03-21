@@ -121,6 +121,29 @@ describe("parseJfrSummary — issue detection", () => {
     expect(result.issues.length).toBe(0);
   });
 
+  it("should detect excessive Object.wait() events", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.JavaMonitorWait                      3000      180000
+ jdk.ObjectAllocationInNewTLAB             100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("Object.wait()"))).toBe(true);
+    expect(result.recommendations.some(r => r.includes("producer"))).toBe(true);
+  });
+
+  it("should not flag low Object.wait() count", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.JavaMonitorWait                       500       30000
+ jdk.ObjectAllocationInNewTLAB             100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("Object.wait()"))).toBe(false);
+  });
+
   it("should detect dominant event type and recommend focus", () => {
     const input = `
  Event Type                              Count  Size (bytes)
