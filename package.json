@@ -53,6 +53,7 @@
     "url": "https://github.com/Dmitriusan/mcp-jvm-diagnostics/issues"
   },
   "dependencies": {
+    "@mcp-java-suite/license": "file:../../mcp-suite-license/mcp-suite-license",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "zod": "^3.24.2"
   },

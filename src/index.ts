@@ -12,6 +12,10 @@ import { analyzeGcPressure } from "./analyzers/gc-pressure.js";
 import { parseHeapHisto } from "./parsers/heap-histo.js";
 import { compareHeapHistos } from "./analyzers/heap-diff.js";
 import { parseJfrSummary } from "./parsers/jfr-summary.js";
+import {
+  generateReportFromThreadDump,
+  analyzeThreadDumpMarkdown,
+} from "./reporting.js";
 
 // Handle --help
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -29,13 +33,14 @@ Tools provided:
   analyze_heap_histo    Parse jmap -histo output, detect memory leak candidates
   compare_heap_histos   Compare two jmap histos to detect memory growth
   analyze_jfr           Parse JFR summary output, detect performance hotspots
-  diagnose_jvm          Unified diagnosis from thread dump + GC log`);
+  diagnose_jvm          Unified diagnosis from thread dump + GC log
+  generate_report       Generate an exportable HTML + PDF diagnostic report (Pro)`);
   process.exit(0);
 }
 
 const server = new McpServer({
   name: "mcp-jvm-diagnostics",
-  version: "0.1.4",
+  version: "0.1.5",
 });
 
 // --- Tool: analyze_thread_dump ---
@@ -49,89 +54,65 @@ server.tool(
   },
   async ({ thread_dump }) => {
     try {
-      const parsed = parseThreadDump(thread_dump);
-      const deadlocks = detectDeadlocks(parsed.threads);
-      const contention = analyzeContention(parsed.threads);
-
-      const sections: string[] = [];
-
-      // Summary
-      sections.push(`## Thread Dump Analysis`);
-      sections.push(`\n- **JVM**: ${parsed.jvmInfo || "Unknown"}`);
-      sections.push(`- **Timestamp**: ${parsed.timestamp || "Unknown"}`);
-      sections.push(`- **Total threads**: ${parsed.threads.length}`);
-
-      // Thread state breakdown
-      const stateCounts = new Map<string, number>();
-      for (const t of parsed.threads) {
-        stateCounts.set(t.state, (stateCounts.get(t.state) || 0) + 1);
-      }
-
-      // Ensure all canonical Java thread states appear
-      const canonicalStates = ["RUNNABLE", "WAITING", "TIMED_WAITING", "BLOCKED", "NEW", "TERMINATED"];
-      for (const s of canonicalStates) {
-        if (!stateCounts.has(s)) stateCounts.set(s, 0);
-      }
-
-      const total = parsed.threads.length;
-      const maxCount = Math.max(...stateCounts.values(), 1);
-      const barMaxWidth = 20;
-
-      sections.push(`\n### Thread State Summary`);
-      sections.push(`| State | Count | % | Histogram |`);
-      sections.push(`|-------|------:|--:|-----------|`);
-      // Sort: non-zero descending by count, then zero-count states in canonical order
-      const sorted = [...stateCounts.entries()].sort((a, b) => {
-        if (a[1] !== b[1]) return b[1] - a[1];
-        return canonicalStates.indexOf(a[0]) - canonicalStates.indexOf(b[0]);
-      });
-      for (const [state, count] of sorted) {
-        const pct = total > 0 ? ((count / total) * 100).toFixed(1) : "0.0";
-        const barLen = Math.round((count / maxCount) * barMaxWidth);
-        const bar = "\u2588".repeat(barLen);
-        sections.push(`| ${state} | ${count} | ${pct} | \`${bar}\` |`);
-      }
-
-      // Deadlocks
-      if (deadlocks.length > 0) {
-        sections.push(`\n### Deadlocks Detected (${deadlocks.length})`);
-        for (const dl of deadlocks) {
-          sections.push(`\n**Deadlock cycle** (${dl.threads.length} threads):`);
-          for (const t of dl.threads) {
-            sections.push(`- **${t.name}** holds \`${t.holdsLock}\`, waiting for \`${t.waitingOn}\``);
-          }
-          sections.push(`\n**Resolution**: ${dl.recommendation}`);
-        }
-      } else {
-        sections.push(`\n### Deadlocks: None detected`);
-      }
-
-      // Contention
-      if (contention.hotspots.length > 0) {
-        sections.push(`\n### Lock Contention Hotspots`);
-        sections.push(`| Lock | Blocked Threads | Holder |`);
-        sections.push(`|------|----------------|--------|`);
-        for (const h of contention.hotspots) {
-          sections.push(`| \`${h.lock}\` | ${h.blockedCount} | ${h.holderThread} |`);
-        }
-        if (contention.recommendations.length > 0) {
-          sections.push(`\n### Recommendations`);
-          for (const rec of contention.recommendations) {
-            sections.push(`- ${rec}`);
-          }
-        }
-      }
-
-      // Daemon vs non-daemon
-      const daemonCount = parsed.threads.filter(t => t.isDaemon).length;
-      sections.push(`\n### Thread Classification`);
-      sections.push(`- Daemon threads: ${daemonCount}`);
-      sections.push(`- Non-daemon threads: ${parsed.threads.length - daemonCount}`);
-
-      return { content: [{ type: "text", text: sections.join("\n") }] };
+      return {
+        content: [{ type: "text", text: analyzeThreadDumpMarkdown(thread_dump) }],
+      };
     } catch (err) {
       return {
         content: [{ type: "text", text: `Error analyzing thread dump: ${err instanceof Error ? err.message : String(err)}` }],
+      };
+    }
+  }
+);
+
+// --- Tool: generate_report ---
+server.tool(
+  "generate_report",
+  "Generate an exportable diagnostic report (HTML + PDF) from JVM diagnostic data. Requires a valid Pro license key.",
+  {
+    license_key: z
+      .string()
+      .describe("A valid MCP JVM Diagnostics Pro license key"),
+    thread_dump: z
+      .string()
+      .describe("The full thread dump text to analyze and export"),
+  },
+  async ({ license_key, thread_dump }) => {
+    try {
+      const result = await generateReportFromThreadDump({
+        licenseKey: license_key,
+        threadDump: thread_dump,
+      });
+
+      if (!result.ok) {
+        return {
+          content: [{ type: "text", text: result.error }],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              "Exportable diagnostic report generated successfully.",
+              `HTML: ${result.htmlPath}`,
+              `PDF: ${result.pdfPath}`,
+              `Customer ID: ${result.customerId ?? "Unknown"}`,
+            ].join("\n"),
+          },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error generating report: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          },
+        ],
       };
     }
   }
