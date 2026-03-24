@@ -249,3 +249,54 @@ describe("Contention Analyzer", () => {
     expect(contention.recommendations.length).toBeGreaterThan(0);
   });
 });
+
+// Thread-Multi-Lock holds two locks (LOCK_0 and LOCK_1) and waits for LOCK_2.
+// Thread-Waiter holds LOCK_2 and waits for LOCK_1.
+// The cycle lock for Thread-Multi-Lock is LOCK_1 (what Thread-Waiter needs),
+// NOT LOCK_0 (just the first lock in holdsLocks).
+const MULTI_LOCK_DEADLOCK_DUMP = `
+Full thread dump OpenJDK 64-Bit Server VM (21.0.2+13 mixed mode):
+
+"Thread-Multi-Lock" #10 prio=5 os_prio=0 tid=0x00007f0001 nid=0xa waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.MultiLockDemo.methodA(MultiLockDemo.java:20)
+\t- waiting to lock <0x000000076ab00002> (a java.lang.Object)
+\t- locked <0x000000076ab00000> (a java.lang.Object)
+\t- locked <0x000000076ab00001> (a java.lang.Object)
+
+"Thread-Waiter" #11 prio=5 os_prio=0 tid=0x00007f0002 nid=0xb waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.MultiLockDemo.methodB(MultiLockDemo.java:30)
+\t- waiting to lock <0x000000076ab00001> (a java.lang.Object)
+\t- locked <0x000000076ab00002> (a java.lang.Object)
+`;
+
+describe("Deadlock Detector — multiple locks per thread", () => {
+  it("detects the deadlock when a thread holds more than one lock", () => {
+    const result = parseThreadDump(MULTI_LOCK_DEADLOCK_DUMP);
+    const deadlocks = detectDeadlocks(result.threads);
+    expect(deadlocks.length).toBe(1);
+    expect(deadlocks[0].threads.length).toBe(2);
+  });
+
+  it("reports the cycle-forming lock, not the first lock held", () => {
+    const result = parseThreadDump(MULTI_LOCK_DEADLOCK_DUMP);
+    const deadlocks = detectDeadlocks(result.threads);
+    const multiLockEntry = deadlocks[0].threads.find(t => t.name === "Thread-Multi-Lock");
+    expect(multiLockEntry).toBeDefined();
+    // Thread-Multi-Lock holds [0xLOCK_0, 0xLOCK_1] and waits for 0xLOCK_2.
+    // Thread-Waiter waits for 0xLOCK_1, so that is the cycle-forming lock.
+    expect(multiLockEntry!.holdsLock).toBe("0x000000076ab00001");
+    // The first lock (0xLOCK_0) is NOT the cycle-forming one
+    expect(multiLockEntry!.holdsLock).not.toBe("0x000000076ab00000");
+  });
+
+  it("reports correct waitingOn for each thread in cycle", () => {
+    const result = parseThreadDump(MULTI_LOCK_DEADLOCK_DUMP);
+    const deadlocks = detectDeadlocks(result.threads);
+    const multiLockEntry = deadlocks[0].threads.find(t => t.name === "Thread-Multi-Lock");
+    const waiterEntry = deadlocks[0].threads.find(t => t.name === "Thread-Waiter");
+    expect(multiLockEntry!.waitingOn).toBe("0x000000076ab00002");
+    expect(waiterEntry!.waitingOn).toBe("0x000000076ab00001");
+  });
+});

@@ -87,11 +87,21 @@ export function detectDeadlocks(threads: ParsedThread[]): Deadlock[] {
         visited.add(t.name);
       }
 
-      const dlThreads: DeadlockThread[] = cycleThreads.map(t => ({
-        name: t.name,
-        holdsLock: t.holdsLocks[0] || "unknown",
-        waitingOn: t.waitingOn || "unknown",
-      }));
+      const dlThreads: DeadlockThread[] = cycleThreads.map((t, i) => {
+        // Use the lock this thread holds that the next thread in the cycle is waiting on.
+        // This ensures we report the lock that actually forms the deadlock cycle, not
+        // an arbitrary first lock (threads may hold multiple locks).
+        const nextThread = cycleThreads[(i + 1) % cycleThreads.length];
+        const cycleLock =
+          t.holdsLocks.find(lock => lock === nextThread.waitingOn) ??
+          t.holdsLocks[0] ??
+          "unknown";
+        return {
+          name: t.name,
+          holdsLock: cycleLock,
+          waitingOn: t.waitingOn || "unknown",
+        };
+      });
 
       deadlocks.push({
         threads: dlThreads,

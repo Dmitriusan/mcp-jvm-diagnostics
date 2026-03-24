@@ -141,6 +141,9 @@ server.tool(
 
       // Pause time stats
       if (parsed.events.length > 0) {
+        const gcOverheadStr = parsed.hasTimestamps
+          ? `${pressure.gcOverheadPct.toFixed(1)}%`
+          : "N/A (legacy format has no timestamps)";
         sections.push(`\n### Pause Time Statistics`);
         sections.push(`| Metric | Value |`);
         sections.push(`|--------|-------|`);
@@ -149,7 +152,7 @@ server.tool(
         sections.push(`| Avg pause | ${pressure.avgPauseMs.toFixed(1)} ms |`);
         sections.push(`| P95 pause | ${pressure.p95PauseMs.toFixed(1)} ms |`);
         sections.push(`| Total pause time | ${pressure.totalPauseMs.toFixed(0)} ms |`);
-        sections.push(`| GC overhead | ${pressure.gcOverheadPct.toFixed(1)}% |`);
+        sections.push(`| GC overhead | ${gcOverheadStr} |`);
       }
 
       // Heap sizing
@@ -460,7 +463,10 @@ server.tool(
         sections.push(`- Algorithm: ${parsed.algorithm}`);
         sections.push(`- Events: ${parsed.events.length}`);
         sections.push(`- Max pause: ${pressure.maxPauseMs.toFixed(1)} ms`);
-        sections.push(`- GC overhead: ${pressure.gcOverheadPct.toFixed(1)}%`);
+        const overheadLabel = parsed.hasTimestamps
+          ? `${pressure.gcOverheadPct.toFixed(1)}%`
+          : "N/A (no timestamps in legacy format)";
+        sections.push(`- GC overhead: ${overheadLabel}`);
         sections.push(`- Issues: ${pressure.issues.length}`);
       }
 

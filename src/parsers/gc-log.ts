@@ -20,6 +20,9 @@ export interface ParsedGcLog {
   algorithm: string;
   events: GcEvent[];
   timeSpanMs: number;
+  /** False when all events come from legacy -verbose:gc format which has no timestamps.
+   *  In that case timeSpanMs and gcOverheadPct are not calculable. */
+  hasTimestamps: boolean;
 }
 
 // Unified logging: [0.123s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 24M->8M(256M) 1.234ms
@@ -154,11 +157,13 @@ export function parseGcLog(text: string): ParsedGcLog {
 
   // Calculate time span
   let timeSpanMs = 0;
-  if (events.length > 1) {
+  // Legacy -verbose:gc events have timestamp=0; unified logging events have real timestamps.
+  const hasTimestamps = events.length > 0 && events.some(e => e.timestamp > 0);
+  if (hasTimestamps && events.length > 1) {
     const firstTs = events[0].timestamp;
     const lastTs = events[events.length - 1].timestamp;
     timeSpanMs = (lastTs - firstTs) * 1000;
   }
 
-  return { algorithm, events, timeSpanMs };
+  return { algorithm, events, timeSpanMs, hasTimestamps };
 }

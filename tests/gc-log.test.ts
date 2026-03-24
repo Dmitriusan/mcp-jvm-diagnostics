@@ -261,3 +261,48 @@ describe("ZGC format", () => {
     expect(result.timeSpanMs).toBeGreaterThan(0);
   });
 });
+
+describe("ParsedGcLog hasTimestamps", () => {
+  it("sets hasTimestamps=true for unified G1 log", () => {
+    const result = parseGcLog(G1_LOG);
+    expect(result.hasTimestamps).toBe(true);
+  });
+
+  it("sets hasTimestamps=true for ZGC log", () => {
+    const result = parseGcLog(ZGC_LOG);
+    expect(result.hasTimestamps).toBe(true);
+  });
+
+  it("sets hasTimestamps=true for Shenandoah log", () => {
+    const result = parseGcLog(SHENANDOAH_LOG);
+    expect(result.hasTimestamps).toBe(true);
+  });
+
+  it("sets hasTimestamps=false for legacy -verbose:gc log", () => {
+    const result = parseGcLog(LEGACY_LOG);
+    expect(result.hasTimestamps).toBe(false);
+  });
+
+  it("sets hasTimestamps=false for Parallel PSYoungGen legacy log", () => {
+    const result = parseGcLog(PARALLEL_REGION_LOG);
+    expect(result.hasTimestamps).toBe(false);
+  });
+
+  it("sets hasTimestamps=false for empty log", () => {
+    const result = parseGcLog("");
+    expect(result.hasTimestamps).toBe(false);
+  });
+
+  it("timeSpanMs is 0 for legacy log (no timestamps to compute span)", () => {
+    const result = parseGcLog(LEGACY_LOG);
+    expect(result.timeSpanMs).toBe(0);
+  });
+
+  it("gcOverheadPct stays 0 for legacy log (cannot compute without timestamps)", () => {
+    const result = parseGcLog(LEGACY_LOG);
+    const pressure = analyzeGcPressure(result);
+    // timeSpanMs is 0 so overhead cannot be calculated — should not show a fake 0%
+    expect(result.hasTimestamps).toBe(false);
+    expect(pressure.gcOverheadPct).toBe(0);
+  });
+});
