@@ -15,7 +15,7 @@ import { detectDeadlocks } from "./analyzers/deadlock.js";
 import { parseThreadDump } from "./parsers/thread-dump.js";
 
 const PRODUCT_NAME = "jvm-diagnostics";
-const TOOL_VERSION = "0.1.5";
+const TOOL_VERSION = "0.1.6";
 
 export const MISSING_LICENSE_INPUT_ERROR =
   "Missing required input: license_key";

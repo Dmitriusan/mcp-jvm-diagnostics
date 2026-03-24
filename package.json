@@ -1,6 +1,6 @@
 {
   "name": "mcp-jvm-diagnostics",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "MCP server for JVM diagnostics — analyze thread dumps, detect deadlocks, parse GC logs, and get JVM tuning recommendations",
   "mcpName": "io.github.dmitriusan/mcp-jvm-diagnostics",
   "author": "Dmytro Lisnichenko",
