@@ -44,7 +44,16 @@ export function analyzeGcPressure(log: ParsedGcLog): GcPressureAnalysis {
   result.maxPauseMs = pauses[pauses.length - 1];
   result.totalPauseMs = pauses.reduce((a, b) => a + b, 0);
   result.avgPauseMs = result.totalPauseMs / pauses.length;
-  result.p95PauseMs = pauses[Math.floor(pauses.length * 0.95)] || result.maxPauseMs;
+  // Linear interpolation for P95: Math.floor(n * 0.95) returns index n-1 whenever
+  // n <= 20, making P95 equal the max. Using (n-1) * 0.95 as the fractional index
+  // and interpolating between adjacent elements gives accurate results at all sizes.
+  const p95Idx = (pauses.length - 1) * 0.95;
+  const p95Lo = Math.floor(p95Idx);
+  const p95Hi = Math.ceil(p95Idx);
+  result.p95PauseMs =
+    p95Lo === p95Hi
+      ? pauses[p95Lo]
+      : pauses[p95Lo] + (pauses[p95Hi] - pauses[p95Lo]) * (p95Idx - p95Lo);
 
   // GC overhead
   if (log.timeSpanMs > 0) {
@@ -109,8 +118,10 @@ function detectIssues(log: ParsedGcLog, result: GcPressureAnalysis): void {
     }
   }
 
-  // Low reclaim ratio
-  if (result.heapBeforeMb > 0 && result.heapAfterMb > 0) {
+  // Low reclaim ratio — only meaningful when heap actually shrank after GC.
+  // Guard heapAfterMb < heapBeforeMb to avoid a negative reclaim percentage when
+  // averaged heap-after exceeds heap-before (e.g. growing heap events skewing averages).
+  if (result.heapBeforeMb > 0 && result.heapAfterMb > 0 && result.heapAfterMb < result.heapBeforeMb) {
     const reclaimPct =
       ((result.heapBeforeMb - result.heapAfterMb) / result.heapBeforeMb) * 100;
     if (reclaimPct < 10) {
@@ -150,8 +161,8 @@ function generateRecommendations(log: ParsedGcLog, result: GcPressureAnalysis): 
     );
   }
 
-  // Low reclaim → check for leaks
-  if (result.heapBeforeMb > 0) {
+  // Low reclaim → check for leaks (same guard as detectIssues: skip when averages are inverted)
+  if (result.heapBeforeMb > 0 && result.heapAfterMb < result.heapBeforeMb) {
     const reclaimPct =
       ((result.heapBeforeMb - result.heapAfterMb) / result.heapBeforeMb) * 100;
     if (reclaimPct < 10) {
