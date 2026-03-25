@@ -306,3 +306,54 @@ describe("ParsedGcLog hasTimestamps", () => {
     expect(pressure.gcOverheadPct).toBe(0);
   });
 });
+
+describe("GC Pressure Analyzer — P95 percentile precision", () => {
+  // Build a synthetic ParsedGcLog with known pause values so we can assert
+  // P95 is computed with linear interpolation, not Math.floor(n*0.95).
+  function syntheticLog(pausesMs: number[]) {
+    return {
+      algorithm: "G1",
+      timeSpanMs: 10_000,
+      hasTimestamps: true,
+      events: pausesMs.map((p, i) => ({
+        timestamp: i * 0.1,
+        type: "Pause Young",
+        pauseMs: p,
+        heapBeforeMb: 100,
+        heapAfterMb: 50,
+        heapTotalMb: 256,
+      })),
+    };
+  }
+
+  it("p95 is not the max for a 10-event sample", () => {
+    // Sorted: 10,20,30,40,50,60,70,80,90,100. Math.floor(10*0.95)=9 → max=100.
+    // Linear: idx=(9)*0.95=8.55 → 90 + 0.55*(100-90)=95.5
+    const log = syntheticLog([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    const pressure = analyzeGcPressure(log);
+    expect(pressure.p95PauseMs).toBeCloseTo(95.5, 1);
+    expect(pressure.p95PauseMs).toBeLessThan(pressure.maxPauseMs);
+  });
+
+  it("p95 is not the max for a 20-event sample", () => {
+    // Sorted: 5,10,15,...,100 (step 5). Math.floor(20*0.95)=19 → max=100.
+    // Linear: idx=19*0.95=18.05 → pauses[18]=95, pauses[19]=100 → 95+0.05*(5)=95.25
+    const log = syntheticLog([5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]);
+    const pressure = analyzeGcPressure(log);
+    expect(pressure.p95PauseMs).toBeCloseTo(95.25, 1);
+    expect(pressure.p95PauseMs).toBeLessThan(pressure.maxPauseMs);
+  });
+
+  it("p95 equals the single value for a 1-event sample", () => {
+    const log = syntheticLog([42]);
+    const pressure = analyzeGcPressure(log);
+    expect(pressure.p95PauseMs).toBe(42);
+  });
+
+  it("p95 equals max for a 2-event sample (both are at or above P95)", () => {
+    // idx=(2-1)*0.95=0.95 → pauses[0]+0.95*(pauses[1]-pauses[0])=10+0.95*90=95.5
+    const log = syntheticLog([10, 100]);
+    const pressure = analyzeGcPressure(log);
+    expect(pressure.p95PauseMs).toBeCloseTo(95.5, 1);
+  });
+});
