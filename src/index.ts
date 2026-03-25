@@ -339,11 +339,11 @@ function formatBytes(bytes: number): string {
 // --- Tool: analyze_jfr ---
 server.tool(
   "analyze_jfr",
-  "Parse JDK Flight Recorder summary output (from `jfr summary <file>`) and analyze event distribution, detect performance hotspots, GC pressure, lock contention, I/O patterns, and excessive allocations.",
+  "Parse JDK Flight Recorder summary output and analyze event distribution, detect performance hotspots, GC pressure, lock contention, I/O patterns, and excessive allocations. Input must be the text printed to stdout by `jfr summary <recording.jfr>` — not the binary .jfr file itself.",
   {
     jfr_summary: z
       .string()
-      .describe("The output text from `jfr summary <recording.jfr>`"),
+      .describe("The stdout text from running `jfr summary <recording.jfr>` (a text table of event types, counts, and sizes — not the binary .jfr file)"),
   },
   async ({ jfr_summary }) => {
     try {
