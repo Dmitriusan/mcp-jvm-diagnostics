@@ -46,7 +46,7 @@ const server = new McpServer({
 // --- Tool: analyze_thread_dump ---
 server.tool(
   "analyze_thread_dump",
-  "Parse a JVM thread dump (jstack output) and analyze thread states, detect deadlocks, identify lock contention hotspots, and find thread starvation patterns. Handles both platform threads and virtual threads (Java 21+).",
+  "Parse a JVM thread dump (jstack output) and analyze thread states, detect deadlocks, identify lock contention hotspots, and find thread starvation patterns. Handles both platform threads and virtual threads (Java 21+). Note: deadlock detection covers synchronized monitor locks only — java.util.concurrent.locks.ReentrantLock and other j.u.c lock types do not expose their waiters in thread dump lock info and will not be detected.",
   {
     thread_dump: z
       .string()
@@ -208,7 +208,7 @@ server.tool(
   {
     histo: z
       .string()
-      .describe("The jmap -histo output text (from jmap -histo <pid> or jmap -histo:live <pid>)"),
+      .describe("The jmap -histo output text. Use `jmap -histo:live <pid>` for leak detection — the :live flag forces a full GC first so only reachable objects appear, giving the clearest signal for leaks. Use `jmap -histo <pid>` (without :live) for a cheaper snapshot that includes unreachable objects not yet collected."),
   },
   async ({ histo }) => {
     try {
