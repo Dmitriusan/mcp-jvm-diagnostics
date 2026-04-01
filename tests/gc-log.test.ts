@@ -357,3 +357,58 @@ describe("GC Pressure Analyzer — P95 percentile precision", () => {
     expect(pressure.p95PauseMs).toBeCloseTo(95.5, 1);
   });
 });
+
+describe("GC Log Parser — European locale (comma decimal separator)", () => {
+  // JVMs on systems with a European locale (de, fr, pl, …) write GC logs with
+  // commas as the decimal separator: [0,123s] and 5,123ms instead of [0.123s]
+  // and 5.123ms.  The parser must handle both forms to avoid silently producing
+  // wrong pause-time and timestamp values.
+  const EUROPEAN_LOCALE_LOG = `
+[0,005s][info][gc] Using G1
+[0,100s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 24M->8M(256M) 5,123ms
+[0,300s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 32M->12M(256M) 3,456ms
+[0,500s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 40M->16M(256M) 4,789ms
+[1,000s][info][gc] GC(3) Pause Young (Normal) (G1 Evacuation Pause) 48M->20M(256M) 6,012ms
+[2,000s][info][gc] GC(4) Pause Young (Concurrent Start) (G1 Evacuation Pause) 56M->24M(256M) 8,234ms
+[2,100s][info][gc] GC(5) Concurrent Mark 12,345ms
+[3,000s][info][gc] GC(6) Pause Full (G1 Compaction Pause) 200M->50M(256M) 150,678ms
+`;
+
+  it("detects G1 algorithm from European locale log", () => {
+    const result = parseGcLog(EUROPEAN_LOCALE_LOG);
+    expect(result.algorithm).toBe("G1");
+  });
+
+  it("parses correct event count", () => {
+    const result = parseGcLog(EUROPEAN_LOCALE_LOG);
+    expect(result.events.length).toBe(7);
+  });
+
+  it("parses pause times with comma decimal separator correctly", () => {
+    const result = parseGcLog(EUROPEAN_LOCALE_LOG);
+    expect(result.events[0].pauseMs).toBeCloseTo(5.123, 2);
+    expect(result.events[1].pauseMs).toBeCloseTo(3.456, 2);
+    expect(result.events[6].pauseMs).toBeCloseTo(150.678, 2);
+  });
+
+  it("parses timestamps with comma decimal separator correctly", () => {
+    const result = parseGcLog(EUROPEAN_LOCALE_LOG);
+    expect(result.events[0].timestamp).toBeCloseTo(0.1, 3);
+    expect(result.events[4].timestamp).toBeCloseTo(2.0, 3);
+    expect(result.events[6].timestamp).toBeCloseTo(3.0, 3);
+  });
+
+  it("calculates time span from comma-delimited timestamps", () => {
+    const result = parseGcLog(EUROPEAN_LOCALE_LOG);
+    // span = (3.0 - 0.1) * 1000 = 2900 ms
+    expect(result.timeSpanMs).toBeCloseTo(2900, 0);
+    expect(result.hasTimestamps).toBe(true);
+  });
+
+  it("treats concurrent event as zero-pause", () => {
+    const result = parseGcLog(EUROPEAN_LOCALE_LOG);
+    const concurrent = result.events.find(e => e.type === "Concurrent Mark");
+    expect(concurrent).toBeDefined();
+    expect(concurrent!.pauseMs).toBe(0);
+  });
+});
