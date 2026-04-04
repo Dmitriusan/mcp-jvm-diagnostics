@@ -87,7 +87,9 @@ export function parseHeapHisto(text: string): HeapHistoReport {
     return { entries, totalInstances, totalBytes, issues, recommendations };
   }
 
-  // Analyze top entries for suspicious patterns
+  // Analyze top entries for heap-percentage-based issues.
+  // These checks are only meaningful near the top of the list — a class that doesn't
+  // rank in the top 30 by bytes cannot be consuming >10% of heap.
   for (const entry of entries.slice(0, 30)) {
     const pctBytes = totalBytes > 0 ? (entry.bytes / totalBytes) * 100 : 0;
     const isJdkInternal = JDK_INTERNALS.has(entry.className);
@@ -103,6 +105,22 @@ export function parseHeapHisto(text: string): HeapHistoReport {
         `Investigate ${entry.className} — use Eclipse MAT or VisualVM to trace retention paths. Check for unbounded caches or collections.`
       );
     }
+
+    // Char arrays ([C) or byte arrays ([B) dominating — usually String-related
+    if ((entry.className === "[B" || entry.className === "[C") && pctBytes > 40) {
+      issues.push({
+        severity: "WARNING",
+        message: `${entry.className === "[B" ? "Byte" : "Char"} arrays consume ${pctBytes.toFixed(1)}% of heap — likely driven by String retention. Check for large string caches or log buffering.`,
+        className: entry.className,
+      });
+    }
+  }
+
+  // Instance-count checks scan all entries: a class ranked outside the top 30 by bytes
+  // can still have an excessive number of small instances (e.g., many small DTOs or events).
+  for (const entry of entries) {
+    const pctBytes = totalBytes > 0 ? (entry.bytes / totalBytes) * 100 : 0;
+    const isJdkInternal = JDK_INTERNALS.has(entry.className);
 
     // Very high instance count for non-JDK class (> 100K)
     if (entry.instances > 100_000 && !isJdkInternal && pctBytes <= 10) {
@@ -123,15 +141,6 @@ export function parseHeapHisto(text: string): HeapHistoReport {
       recommendations.push(
         "Replace finalize() with Cleaner or try-with-resources. Finalizers delay GC and can cause memory pressure."
       );
-    }
-
-    // Char arrays ([C) or byte arrays ([B) dominating — usually String-related
-    if ((entry.className === "[B" || entry.className === "[C") && pctBytes > 40) {
-      issues.push({
-        severity: "WARNING",
-        message: `${entry.className === "[B" ? "Byte" : "Char"} arrays consume ${pctBytes.toFixed(1)}% of heap — likely driven by String retention. Check for large string caches or log buffering.`,
-        className: entry.className,
-      });
     }
   }
 

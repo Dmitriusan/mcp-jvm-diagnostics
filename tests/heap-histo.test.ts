@@ -138,4 +138,17 @@ Total       1200000       10500000
     // 200K instances of an app class (< 10% of heap but >100K instances)
     expect(report.issues.some(i => i.className === "com.example.SmallDTO" && i.severity === "WARNING")).toBe(true);
   });
+
+  it("detects high instance count for application class ranked outside top 30", () => {
+    // Build a histogram with 31 JDK-internal entries followed by an app class
+    // with >100K instances. Without scanning beyond top 30, this would be missed.
+    const jdkLines = Array.from({ length: 30 }, (_, i) =>
+      `  ${i + 1}:        ${50000 - i * 100}        ${(50000 - i * 100) * 100}  java.util.HashMap$Node (java.base)`
+    ).join("\n");
+    const appLine = `  31:        150000          450000  com.example.TinyEvent`;
+    const histo = ` num     #instances         #bytes  class name (module)\n-------------------------------------------------------\n${jdkLines}\n${appLine}\nTotal       1650000      500000000`;
+    const report = parseHeapHisto(histo);
+    // com.example.TinyEvent is rank 31 — only caught by the all-entries instance-count scan
+    expect(report.issues.some(i => i.className === "com.example.TinyEvent" && i.severity === "WARNING")).toBe(true);
+  });
 });
