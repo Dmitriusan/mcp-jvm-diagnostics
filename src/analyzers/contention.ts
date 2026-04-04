@@ -75,8 +75,8 @@ export function analyzeContention(threads: ParsedThread[]): ContentionAnalysis {
   }
 
   // Check for thread pool exhaustion
-  const poolPatterns = ["pool-", "http-", "exec-", "ForkJoin", "worker-"];
-  for (const pattern of poolPatterns) {
+  const platformPoolPatterns = ["pool-", "http-", "exec-", "ForkJoin", "worker-"];
+  for (const pattern of platformPoolPatterns) {
     const poolThreads = threads.filter(t => t.name.includes(pattern));
     const poolBlocked = poolThreads.filter(t => t.state === "BLOCKED");
     if (poolThreads.length > 0 && poolBlocked.length > poolThreads.length * 0.5) {
@@ -84,6 +84,19 @@ export function analyzeContention(threads: ParsedThread[]): ContentionAnalysis {
         `Thread pool "${pattern}*" has ${poolBlocked.length}/${poolThreads.length} threads BLOCKED — pool exhaustion risk. Consider increasing pool size or reducing lock hold time.`
       );
     }
+  }
+
+  // Virtual thread schedulers (Java 21+ VirtualThreadScheduler, Kotlin coroutines DefaultDispatcher).
+  // BLOCKED/WAITING state in these pools does not exhaust OS carrier threads — add a caveat instead
+  // of triggering the same exhaustion warning.
+  const virtualPoolPatterns = ["VirtualThreadScheduler", "DefaultDispatcher"];
+  const hasVirtualPool = threads.some(t =>
+    virtualPoolPatterns.some(p => t.name.includes(p))
+  );
+  if (hasVirtualPool) {
+    recommendations.push(
+      "Virtual thread pool detected. BLOCKED and WAITING states do not exhaust OS carrier threads — monitor task queue depth and carrier thread saturation instead."
+    );
   }
 
   // Check for WAITING threads that might indicate starvation
