@@ -271,6 +271,151 @@ Full thread dump OpenJDK 64-Bit Server VM (21.0.2+13 mixed mode):
 \t- locked <0x000000076ab00002> (a java.lang.Object)
 `;
 
+const POOL_EXHAUSTION_DUMP = `
+Full thread dump OpenJDK 64-Bit Server VM (21.0.2+13 mixed mode):
+
+"pool-1-thread-1" #10 daemon prio=5 os_prio=0 tid=0x00007f0001 nid=0xa waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.call(Service.java:20)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"pool-1-thread-2" #11 daemon prio=5 os_prio=0 tid=0x00007f0002 nid=0xb waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.call(Service.java:20)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"pool-1-thread-3" #12 daemon prio=5 os_prio=0 tid=0x00007f0003 nid=0xc waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.call(Service.java:20)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"pool-1-thread-4" #13 daemon prio=5 os_prio=0 tid=0x00007f0004 nid=0xd runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.Service.call(Service.java:20)
+\t- locked <0x000000076ab00000> (a java.lang.Object)
+`;
+
+const WAITING_STARVATION_DUMP = `
+Full thread dump OpenJDK 64-Bit Server VM (21.0.2+13 mixed mode):
+
+"consumer-1" #10 daemon prio=5 os_prio=0 tid=0x00007f0001 nid=0xa in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"consumer-2" #11 daemon prio=5 os_prio=0 tid=0x00007f0002 nid=0xb in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"consumer-3" #12 daemon prio=5 os_prio=0 tid=0x00007f0003 nid=0xc in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"consumer-4" #13 daemon prio=5 os_prio=0 tid=0x00007f0004 nid=0xd in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"consumer-5" #14 daemon prio=5 os_prio=0 tid=0x00007f0005 nid=0xe in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"consumer-6" #15 daemon prio=5 os_prio=0 tid=0x00007f0006 nid=0xf in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"consumer-7" #16 daemon prio=5 os_prio=0 tid=0x00007f0007 nid=0x10 in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"consumer-8" #17 daemon prio=5 os_prio=0 tid=0x00007f0008 nid=0x11 in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+\tat java.lang.Object.wait(java.base@21/Native Method)
+\t- waiting on <0x000000076bb00000> (a java.util.concurrent.LinkedBlockingQueue)
+
+"producer-1" #18 daemon prio=5 os_prio=0 tid=0x00007f0009 nid=0x12 runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.Producer.produce(Producer.java:15)
+
+"main" #1 prio=5 os_prio=0 tid=0x00007f000a nid=0x1 runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.App.main(App.java:10)
+`;
+
+const VIRTUAL_THREAD_DUMP = `
+Full thread dump OpenJDK 64-Bit Server VM (21.0.5+11 mixed mode):
+
+"VirtualThreadScheduler-worker-1" #5 daemon prio=5 os_prio=0 tid=0x00007f0001 nid=0x1 runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.Handler.handle(Handler.java:20)
+
+"VirtualThreadScheduler-worker-2" #6 daemon prio=5 os_prio=0 tid=0x00007f0002 nid=0x2 waiting on condition
+   java.lang.Thread.State: WAITING (parking)
+\tat jdk.internal.misc.Unsafe.park(java.base@21/Native Method)
+
+"main" #1 prio=5 os_prio=0 tid=0x00007f0003 nid=0x3 runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.App.main(App.java:5)
+`;
+
+describe("Contention Analyzer — pool exhaustion", () => {
+  it("warns when majority of a named thread pool is BLOCKED", () => {
+    const result = parseThreadDump(POOL_EXHAUSTION_DUMP);
+    const contention = analyzeContention(result.threads);
+    // 3 of 4 pool-1-thread-* are BLOCKED (75%) — exceeds 50% threshold
+    expect(contention.recommendations.some(r => r.includes("pool-") && r.includes("BLOCKED"))).toBe(true);
+  });
+
+  it("does not warn when pool has fewer than half blocked", () => {
+    // In SAMPLE_THREAD_DUMP the http-nio threads (2) and worker (1) form a pool,
+    // but only 2/3 "http-" or "worker-" pattern threads match individually and only
+    // the "http-" pool is >50% blocked — this is a sanity check that normal contention
+    // in a pool without exhaustion doesn't fire the pool exhaustion warning.
+    const result = parseThreadDump(SAMPLE_THREAD_DUMP);
+    const contention = analyzeContention(result.threads);
+    // "worker-" pool: 1 thread total, 0 BLOCKED — no exhaustion warning for worker-
+    expect(
+      contention.recommendations.some(r => r.includes("worker-") && r.includes("pool exhaustion"))
+    ).toBe(false);
+  });
+});
+
+describe("Contention Analyzer — WAITING starvation", () => {
+  it("warns when more than 70% of threads are in WAITING state", () => {
+    const result = parseThreadDump(WAITING_STARVATION_DUMP);
+    const contention = analyzeContention(result.threads);
+    // 8 of 10 threads are WAITING (80%) — exceeds the 70% threshold
+    expect(contention.recommendations.some(r => r.includes("WAITING") && r.includes("starvation"))).toBe(true);
+  });
+
+  it("does not flag starvation when WAITING threads are below threshold", () => {
+    const result = parseThreadDump(SAMPLE_THREAD_DUMP);
+    const contention = analyzeContention(result.threads);
+    // Only 1 of 6 threads is WAITING (<70%)
+    expect(contention.recommendations.some(r => r.includes("starvation"))).toBe(false);
+  });
+});
+
+describe("Contention Analyzer — virtual thread pools", () => {
+  it("adds virtual-thread caveat when VirtualThreadScheduler threads are present", () => {
+    const result = parseThreadDump(VIRTUAL_THREAD_DUMP);
+    const contention = analyzeContention(result.threads);
+    expect(contention.recommendations.some(r => r.includes("Virtual thread pool"))).toBe(true);
+    expect(contention.recommendations.some(r => r.includes("carrier thread"))).toBe(true);
+  });
+
+  it("does not add virtual-thread caveat for platform thread dumps", () => {
+    const result = parseThreadDump(SAMPLE_THREAD_DUMP);
+    const contention = analyzeContention(result.threads);
+    expect(contention.recommendations.some(r => r.includes("Virtual thread pool"))).toBe(false);
+  });
+});
+
 describe("Deadlock Detector — multiple locks per thread", () => {
   it("detects the deadlock when a thread holds more than one lock", () => {
     const result = parseThreadDump(MULTI_LOCK_DEADLOCK_DUMP);
