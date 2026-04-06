@@ -139,6 +139,20 @@ Total       1200000       10500000
     expect(report.issues.some(i => i.className === "com.example.SmallDTO" && i.severity === "WARNING")).toBe(true);
   });
 
+  it("calculates totals from entries when Total line is missing", () => {
+    const histo = `
+ num     #instances         #bytes  class name (module)
+-------------------------------------------------------
+   1:        100000       10000000  [B (java.base)
+   2:         50000        5000000  java.lang.String (java.base)
+   3:         20000        2000000  com.example.Widget
+`;
+    const report = parseHeapHisto(histo);
+    expect(report.entries.length).toBe(3);
+    expect(report.totalInstances).toBe(170000);
+    expect(report.totalBytes).toBe(17000000);
+  });
+
   it("detects high instance count for application class ranked outside top 30", () => {
     // Build a histogram with 31 JDK-internal entries followed by an app class
     // with >100K instances. Without scanning beyond top 30, this would be missed.
