@@ -412,16 +412,16 @@ server.tool(
 // --- Tool: diagnose_jvm ---
 server.tool(
   "diagnose_jvm",
-  "Unified JVM diagnosis combining thread dump and GC log analysis. Provide one or both inputs for comprehensive root cause analysis.",
+  "Unified JVM diagnosis combining thread dump and GC log analysis with cross-correlation. Detects deadlocks, lock contention, GC pressure, and GC-induced cascading thread blocks. When both inputs are provided from the same time window, cross-correlates high GC overhead with contention and flags long GC pauses causing thread starvation. Either input can be omitted for single-source analysis.",
   {
     thread_dump: z
       .string()
       .optional()
-      .describe("Thread dump text (from jstack)"),
+      .describe("Thread dump text (from jstack, kill -3, or VisualVM). Capture at the same time as the GC log for accurate cross-correlation."),
     gc_log: z
       .string()
       .optional()
-      .describe("GC log text (from -Xlog:gc*)"),
+      .describe("GC log text (from -Xlog:gc* for Java 9+, or -verbose:gc for Java 8). Capture at the same time as the thread dump for accurate cross-correlation."),
   },
   async ({ thread_dump, gc_log }) => {
     try {
