@@ -416,6 +416,60 @@ describe("Contention Analyzer — virtual thread pools", () => {
   });
 });
 
+// Three-way deadlock: A holds LOCK_0 waiting for LOCK_1,
+//                     B holds LOCK_1 waiting for LOCK_2,
+//                     C holds LOCK_2 waiting for LOCK_0.
+const THREE_WAY_DEADLOCK_DUMP = `
+Full thread dump OpenJDK 64-Bit Server VM (21.0.2+13 mixed mode):
+
+"Thread-A" #10 prio=5 os_prio=0 tid=0x00007f0001 nid=0xa waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.ThreeWay.methodA(ThreeWay.java:20)
+\t- waiting to lock <0x000000076ab00001> (a java.lang.Object)
+\t- locked <0x000000076ab00000> (a java.lang.Object)
+
+"Thread-B" #11 prio=5 os_prio=0 tid=0x00007f0002 nid=0xb waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.ThreeWay.methodB(ThreeWay.java:35)
+\t- waiting to lock <0x000000076ab00002> (a java.lang.Object)
+\t- locked <0x000000076ab00001> (a java.lang.Object)
+
+"Thread-C" #12 prio=5 os_prio=0 tid=0x00007f0003 nid=0xc waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.ThreeWay.methodC(ThreeWay.java:50)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+\t- locked <0x000000076ab00002> (a java.lang.Object)
+`;
+
+describe("Deadlock Detector — three-way cycle", () => {
+  it("detects exactly one deadlock in a three-thread cycle", () => {
+    const result = parseThreadDump(THREE_WAY_DEADLOCK_DUMP);
+    const deadlocks = detectDeadlocks(result.threads);
+    expect(deadlocks.length).toBe(1);
+    expect(deadlocks[0].threads.length).toBe(3);
+  });
+
+  it("includes all three threads in the cycle", () => {
+    const result = parseThreadDump(THREE_WAY_DEADLOCK_DUMP);
+    const deadlocks = detectDeadlocks(result.threads);
+    const names = deadlocks[0].threads.map(t => t.name).sort();
+    expect(names).toEqual(["Thread-A", "Thread-B", "Thread-C"]);
+  });
+
+  it("reports correct cycle-forming locks for each thread", () => {
+    const result = parseThreadDump(THREE_WAY_DEADLOCK_DUMP);
+    const deadlocks = detectDeadlocks(result.threads);
+    const byName = Object.fromEntries(deadlocks[0].threads.map(t => [t.name, t]));
+    // Each thread holds exactly one lock and waits for the next thread's lock
+    expect(byName["Thread-A"].holdsLock).toBe("0x000000076ab00000");
+    expect(byName["Thread-A"].waitingOn).toBe("0x000000076ab00001");
+    expect(byName["Thread-B"].holdsLock).toBe("0x000000076ab00001");
+    expect(byName["Thread-B"].waitingOn).toBe("0x000000076ab00002");
+    expect(byName["Thread-C"].holdsLock).toBe("0x000000076ab00002");
+    expect(byName["Thread-C"].waitingOn).toBe("0x000000076ab00000");
+  });
+});
+
 describe("Deadlock Detector — multiple locks per thread", () => {
   it("detects the deadlock when a thread holds more than one lock", () => {
     const result = parseThreadDump(MULTI_LOCK_DEADLOCK_DUMP);
