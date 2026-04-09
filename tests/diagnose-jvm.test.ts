@@ -254,3 +254,82 @@ describe("diagnose_jvm combined analysis", () => {
     expect(result.text).toContain("Please provide at least one of");
   });
 });
+
+// Cross-correlation threshold boundary tests.
+// The warnings have two independent conditions joined by AND.
+// These tests verify each condition independently so we know
+// the AND logic is correct — not just that both conditions happening
+// together produce a warning.
+
+const THREAD_DUMP_5_BLOCKED = `
+2026-03-13 12:00:00
+Full thread dump OpenJDK 64-Bit Server VM (21.0.2+13 mixed mode):
+
+"main" #1 prio=5 os_prio=0 cpu=100.00ms elapsed=10.00s tid=0x00007f1234567890 nid=0x1 runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.App.main(App.java:10)
+
+"http-nio-8080-exec-1" #20 daemon prio=5 os_prio=0 cpu=50.00ms elapsed=8.00s tid=0x00007f1234567893 nid=0x14 waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.getData(Service.java:55)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"http-nio-8080-exec-2" #21 daemon prio=5 os_prio=0 cpu=30.00ms elapsed=8.00s tid=0x00007f1234567894 nid=0x15 waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.getData(Service.java:55)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"http-nio-8080-exec-3" #22 daemon prio=5 os_prio=0 cpu=25.00ms elapsed=8.00s tid=0x00007f1234567895 nid=0x16 waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.getData(Service.java:55)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"http-nio-8080-exec-4" #23 daemon prio=5 os_prio=0 cpu=22.00ms elapsed=8.00s tid=0x00007f1234567896 nid=0x17 waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.getData(Service.java:55)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"http-nio-8080-exec-5" #24 daemon prio=5 os_prio=0 cpu=18.00ms elapsed=8.00s tid=0x00007f1234567897 nid=0x18 waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.Service.getData(Service.java:55)
+\t- waiting to lock <0x000000076ab00000> (a java.lang.Object)
+
+"worker-1" #30 daemon prio=5 os_prio=0 cpu=200.00ms elapsed=9.00s tid=0x00007f1234567899 nid=0x1e runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.Worker.run(Worker.java:15)
+\t- locked <0x000000076ab00000> (a java.lang.Object)
+`;
+
+// Low-overhead GC log: 3 events × 1ms over 10 seconds → ~0.03% overhead, well below 10%
+const LOW_OVERHEAD_GC_LOG = `
+[0.005s][info][gc] Using G1
+[1.000s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 24M->8M(256M) 1.0ms
+[5.000s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 32M->12M(256M) 1.0ms
+[10.000s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 40M->16M(256M) 1.0ms
+`;
+
+describe("diagnose_jvm — cross-correlation threshold boundaries", () => {
+  it("does NOT warn about cascading blocks when blocked thread count is exactly 5 (threshold is > 5)", () => {
+    // HIGH_PRESSURE_GC_LOG has max pause 620ms > 500ms threshold, but only 5 BLOCKED threads
+    const result = diagnoseJvm(THREAD_DUMP_5_BLOCKED, HIGH_PRESSURE_GC_LOG);
+    expect(result.text).not.toContain("GC may be causing cascading blocks");
+  });
+
+  it("does NOT warn about GC overhead + contention when GC overhead is below 10%", () => {
+    // THREAD_DUMP_WITH_GC_THREADS has contention hotspots, but low-overhead GC log gives ~0.03% overhead
+    const result = diagnoseJvm(THREAD_DUMP_WITH_GC_THREADS, LOW_OVERHEAD_GC_LOG);
+    expect(result.text).not.toContain("combined with lock contention");
+  });
+
+  it("does NOT warn about GC overhead + contention when there are no contention hotspots", () => {
+    // SIMPLE_THREAD_DUMP has no BLOCKED/waiting threads — no hotspots
+    const result = diagnoseJvm(SIMPLE_THREAD_DUMP, HIGH_PRESSURE_GC_LOG);
+    expect(result.text).not.toContain("combined with lock contention");
+  });
+
+  it("does NOT warn about cascading blocks when max GC pause is below 500ms", () => {
+    // THREAD_DUMP_WITH_GC_THREADS has 6 BLOCKED threads, but HEALTHY_GC_LOG max pause is ~5ms
+    const result = diagnoseJvm(THREAD_DUMP_WITH_GC_THREADS, HEALTHY_GC_LOG);
+    expect(result.text).not.toContain("GC may be causing cascading blocks");
+  });
+});

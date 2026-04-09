@@ -157,6 +157,52 @@ describe("parseJfrSummary — issue detection", () => {
   });
 });
 
+describe("parseJfrSummary — recommendations for missing issues", () => {
+  it("should recommend thread pool for thread churn", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ThreadStart                           300       18000
+ jdk.ObjectAllocationInNewTLAB             100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.recommendations.some(r => r.includes("thread pool") || r.includes("thread creation"))).toBe(true);
+  });
+
+  it("should recommend heap histo analysis for excessive class loading", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ClassLoad                            1500       90000
+ jdk.ObjectAllocationInNewTLAB             100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.recommendations.some(r => r.includes("analyze_heap_histo"))).toBe(true);
+  });
+
+  it("should not recommend thread pool for low thread start count", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ThreadStart                            50        3000
+ jdk.ObjectAllocationInNewTLAB             100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.recommendations.some(r => r.includes("thread pool"))).toBe(false);
+  });
+
+  it("should not recommend heap histo for low class load count", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ClassLoad                             500       30000
+ jdk.ObjectAllocationInNewTLAB             100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.recommendations.some(r => r.includes("analyze_heap_histo"))).toBe(false);
+  });
+});
+
 describe("parseJfrSummary — edge cases", () => {
   it("should handle events without size column", () => {
     const input = `
