@@ -181,6 +181,9 @@ function analyzeJfrEvents(
     issues.push(
       `${threadStart.count.toLocaleString()} threads started — possible thread churn. Consider thread pooling.`,
     );
+    recommendations.push(
+      "Replace ad-hoc thread creation with a fixed-size thread pool (Executors.newFixedThreadPool) or virtual threads (Java 21+) to eliminate thread creation overhead.",
+    );
   }
 
   // Check for exception events
@@ -199,6 +202,9 @@ function analyzeJfrEvents(
   if (classLoad && classLoad.count > 1000) {
     issues.push(
       `${classLoad.count.toLocaleString()} class loads — excessive class loading may indicate classloader leak or dynamic proxy overuse.`,
+    );
+    recommendations.push(
+      "Use `analyze_heap_histo` to check java.lang.Class instance count. If growing, look for frameworks that generate proxies or bytecode at runtime (Hibernate, Spring AOP, reflection-heavy libraries).",
     );
   }
 
