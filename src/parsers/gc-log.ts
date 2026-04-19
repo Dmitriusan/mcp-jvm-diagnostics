@@ -152,6 +152,7 @@ export function parseGcLog(text: string): ParsedGcLog {
         heapAfterMb: Math.round(parseInt(parallelRegionMatch[3], 10) / 1024),
         heapTotalMb: Math.round(parseInt(parallelRegionMatch[4], 10) / 1024),
       });
+      continue;
     }
   }
 
