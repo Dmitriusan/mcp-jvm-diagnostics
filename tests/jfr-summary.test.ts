@@ -155,6 +155,54 @@ describe("parseJfrSummary — issue detection", () => {
     const result = parseJfrSummary(input);
     expect(result.recommendations.some(r => r.includes("dominates"))).toBe(true);
   });
+
+  it("should detect high file/socket I/O", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.FileRead                            3000      240000
+ jdk.FileWrite                           1500      120000
+ jdk.SocketRead                          1200       96000
+ jdk.ObjectAllocationInNewTLAB            100        5000
+`;
+    const result = parseJfrSummary(input);
+    // 3000 + 1500 + 1200 = 5700 > 5000 threshold
+    expect(result.issues.some(i => i.includes("I/O"))).toBe(true);
+  });
+
+  it("should not flag low I/O count", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.FileRead                             500       40000
+ jdk.SocketRead                           300       24000
+ jdk.ObjectAllocationInNewTLAB            100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("I/O"))).toBe(false);
+  });
+
+  it("should detect excessive JIT compilations", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.Compilation                          600       72000
+ jdk.ObjectAllocationInNewTLAB            100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("compilation"))).toBe(true);
+  });
+
+  it("should not flag low compilation count", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.Compilation                          200       24000
+ jdk.ObjectAllocationInNewTLAB            100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("compilation"))).toBe(false);
+  });
 });
 
 describe("parseJfrSummary — recommendations for missing issues", () => {
@@ -200,6 +248,30 @@ describe("parseJfrSummary — recommendations for missing issues", () => {
 `;
     const result = parseJfrSummary(input);
     expect(result.recommendations.some(r => r.includes("analyze_heap_histo"))).toBe(false);
+  });
+
+  it("should recommend I/O profiling for high I/O event count", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.FileRead                            3000      240000
+ jdk.SocketWrite                         2500      200000
+ jdk.ObjectAllocationInNewTLAB            100        5000
+`;
+    const result = parseJfrSummary(input);
+    // 3000 + 2500 = 5500 > 5000
+    expect(result.recommendations.some(r => r.includes("async-profiler") || r.includes("batching"))).toBe(true);
+  });
+
+  it("should recommend code cache check for excessive JIT compilations", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.Compilation                          600       72000
+ jdk.ObjectAllocationInNewTLAB            100        5000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.recommendations.some(r => r.includes("ReservedCodeCacheSize"))).toBe(true);
   });
 });
 
