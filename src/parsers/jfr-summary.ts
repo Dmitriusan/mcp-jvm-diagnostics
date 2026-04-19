@@ -218,7 +218,10 @@ function analyzeJfrEvents(
     .reduce((sum, e) => sum + e!.count, 0);
   if (ioCount > 5000) {
     issues.push(
-      `High I/O activity: ${ioCount.toLocaleString()} file/socket events. Consider batching or buffering.`,
+      `High I/O activity: ${ioCount.toLocaleString()} file/socket events recorded.`,
+    );
+    recommendations.push(
+      "Profile I/O call sites with async-profiler or VisualVM. Common causes: unbuffered writes, per-record DB queries, missing connection pooling. Consider batching writes and reads.",
     );
   }
 
