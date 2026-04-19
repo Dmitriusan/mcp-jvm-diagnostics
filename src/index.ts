@@ -417,11 +417,11 @@ server.tool(
     thread_dump: z
       .string()
       .optional()
-      .describe("Thread dump text (from jstack, kill -3, or VisualVM). Capture at the same time as the GC log for accurate cross-correlation."),
+      .describe("Thread dump text (from jstack, kill -3, or VisualVM). Capture during active symptoms for meaningful cross-correlation — a dump from a healthy period will not correlate with GC pressure visible in the log."),
     gc_log: z
       .string()
       .optional()
-      .describe("GC log text (from -Xlog:gc* for Java 9+, or -verbose:gc for Java 8). Capture at the same time as the thread dump for accurate cross-correlation."),
+      .describe("GC log text (from -Xlog:gc* for Java 9+, or -verbose:gc for Java 8). Provide the portion covering the time window when the thread dump was taken — trim the log to the symptom window if it is large. Logs from a different time period produce spurious correlations."),
   },
   async ({ thread_dump, gc_log }) => {
     try {
