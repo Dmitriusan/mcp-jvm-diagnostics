@@ -412,3 +412,43 @@ describe("GC Log Parser — European locale (comma decimal separator)", () => {
     expect(concurrent!.pauseMs).toBe(0);
   });
 });
+
+describe("GC Pressure Analyzer — heap growth leak detection", () => {
+  function logWithHeapAfterValues(heapAfterValues: number[]) {
+    return {
+      algorithm: "G1",
+      timeSpanMs: 10_000,
+      hasTimestamps: true,
+      events: heapAfterValues.map((h, i) => ({
+        timestamp: i * 0.1,
+        type: "Pause Young",
+        pauseMs: 5,
+        heapBeforeMb: h + 50,
+        heapAfterMb: h,
+        heapTotalMb: 512,
+      })),
+    };
+  }
+
+  it("flags heap growing >30% between first and second half as possible memory leak", () => {
+    // First 3 events avg heapAfterMb ≈ 50, last 3 ≈ 70 (40% increase — exceeds 1.3 threshold)
+    const log = logWithHeapAfterValues([50, 52, 48, 70, 72, 68]);
+    const pressure = analyzeGcPressure(log);
+    expect(pressure.issues.some(i => i.includes("Heap after GC is growing over time"))).toBe(true);
+    expect(pressure.issues.some(i => i.includes("possible memory leak"))).toBe(true);
+  });
+
+  it("does not flag heap with <30% growth between halves", () => {
+    // First 3 avg ≈ 50, last 3 avg ≈ 60 (20% increase — below 1.3 threshold)
+    const log = logWithHeapAfterValues([50, 52, 48, 60, 62, 58]);
+    const pressure = analyzeGcPressure(log);
+    expect(pressure.issues.some(i => i.includes("growing over time"))).toBe(false);
+  });
+
+  it("does not trigger heap growth check with fewer than 5 heap events", () => {
+    // Only 4 events total — check requires heapEvents.length >= 5
+    const log = logWithHeapAfterValues([50, 50, 150, 150]);
+    const pressure = analyzeGcPressure(log);
+    expect(pressure.issues.some(i => i.includes("growing over time"))).toBe(false);
+  });
+});
