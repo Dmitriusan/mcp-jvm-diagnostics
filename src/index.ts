@@ -259,10 +259,17 @@ server.tool(
   {
     before: z
       .string()
-      .describe("The FIRST (earlier) jmap -histo output"),
+      .describe(
+        "The FIRST (earlier) jmap -histo output. Capture from a stable baseline — before the suspected leak window or after application startup has settled. " +
+        "Use `jmap -histo:live <pid>` to force a GC before capturing, ensuring unreachable objects are excluded and the snapshot reflects true live objects."
+      ),
     after: z
       .string()
-      .describe("The SECOND (later) jmap -histo output"),
+      .describe(
+        "The SECOND (later) jmap -histo output. Capture after reproducing the suspected leak or after running under load. " +
+        "Allow at least 5-10 minutes between snapshots — short gaps may not accumulate enough growth to distinguish real leaks from normal allocation churn. " +
+        "Use the same `jmap -histo:live` flag as the before snapshot for a fair comparison."
+      ),
   },
   async ({ before, after }) => {
     try {
