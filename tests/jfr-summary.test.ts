@@ -144,6 +144,54 @@ describe("parseJfrSummary — issue detection", () => {
     expect(result.issues.some(i => i.includes("Object.wait()"))).toBe(false);
   });
 
+  it("should flag allocations outside TLAB at exactly the threshold (100)", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ObjectAllocationOutsideTLAB          100        5000
+ jdk.ObjectAllocationInNewTLAB            500       25000
+`;
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("TLAB"))).toBe(true);
+  });
+
+  it("should not flag allocations outside TLAB below threshold with low ratio (99 count, low ratio)", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ObjectAllocationOutsideTLAB           99        4950
+ jdk.ObjectAllocationInNewTLAB           2000      100000
+`;
+    // 99 / (99 + 2000) = 4.7% < 20% — should not fire on ratio either
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("TLAB"))).toBe(false);
+  });
+
+  it("should detect large object pressure via ratio when absolute count is low (25/100 = 25%)", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ObjectAllocationOutsideTLAB           25        1250
+ jdk.ObjectAllocationInNewTLAB             75        3750
+`;
+    // 25 / (25 + 75) = 25% > 20% — ratio-based detection should fire
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("TLAB"))).toBe(true);
+    expect(result.issues.some(i => i.includes("%"))).toBe(true);
+  });
+
+  it("should not fire ratio check when outside-TLAB ratio is below 20%", () => {
+    const input = `
+ Event Type                              Count  Size (bytes)
+ =================================================================
+ jdk.ObjectAllocationOutsideTLAB           10         500
+ jdk.ObjectAllocationInNewTLAB            200       10000
+`;
+    // 10 / (10 + 200) = 4.8% < 20% — neither check should fire
+    const result = parseJfrSummary(input);
+    expect(result.issues.some(i => i.includes("TLAB"))).toBe(false);
+  });
+
   it("should detect dominant event type and recommend focus", () => {
     const input = `
  Event Type                              Count  Size (bytes)
