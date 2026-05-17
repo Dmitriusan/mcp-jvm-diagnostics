@@ -144,13 +144,26 @@ function analyzeJfrEvents(
   // Check for excessive allocation events
   const allocTLAB = byName.get("jdk.ObjectAllocationInNewTLAB");
   const allocOutside = byName.get("jdk.ObjectAllocationOutsideTLAB");
-  if (allocOutside && allocOutside.count > 100) {
+  if (allocOutside && allocOutside.count >= 100) {
     issues.push(
       `${allocOutside.count.toLocaleString()} allocations outside TLAB — objects too large for thread-local allocation buffers.`,
     );
     recommendations.push(
       "Review large object allocations. Consider increasing TLAB size with -XX:TLABSize or reducing object sizes.",
     );
+  } else if (allocOutside && allocTLAB && allocOutside.count > 0) {
+    // Even if the absolute count is low, a high ratio of outside-TLAB to total sampled
+    // allocations indicates pervasive large-object pressure in a low-event recording.
+    const totalSampled = allocTLAB.count + allocOutside.count;
+    const outsidePct = allocOutside.count / totalSampled;
+    if (outsidePct > 0.2) {
+      issues.push(
+        `${allocOutside.count.toLocaleString()} allocations outside TLAB (${(outsidePct * 100).toFixed(0)}% of sampled allocations) — large object pressure detected.`,
+      );
+      recommendations.push(
+        "Review large object allocations. Consider increasing TLAB size with -XX:TLABSize or reducing object sizes.",
+      );
+    }
   }
 
   // Check for thread contention
